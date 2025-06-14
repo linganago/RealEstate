@@ -14,9 +14,14 @@ const userSchema = new mongoose.Schema({
     password:{
         type : String,
         required: true,
-    }
+    },
+    avatar:{
+        type: String,
+        default:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSCHU5JIkqfD2z1KMc4c1nW4zdArnxBM3cCcQ&s"
+    },
+},
 
-},{ timestamps: true });
+{ timestamps: true });
 
 const User = mongoose.model('User',userSchema);
 
