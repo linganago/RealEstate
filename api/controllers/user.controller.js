@@ -1,31 +1,44 @@
-import User from "../models/user.model.js";
-import { errorhandler } from "../utils/error.js";
-import bcryptjs from "bcryptjs";
+import User from '../models/user.model.js';
+import bcryptjs from 'bcryptjs';
+import { errorhandler } from '../utils/error.js';
+
+// TEST ROUTE
 export const test = (req, res) => {
-  res.json({
-    message: 'hello world',
-  });
+  res.send('User route is working');
 };
 
-export const updateUser=async(req,res,next)=>{
-  if(req.user.id !== req.params.id) return next(errorhandler(401,'You should update your own account!'))
+// ✅ UPDATE USER
+export const updateUser = async (req, res, next) => {
+  if (req.user.id !== req.params.id) {
+    return next(errorhandler(403, 'You can only update your own account'));
+  }
+
+  // Hash new password if it's being changed
+  if (req.body.password) {
+    req.body.password = bcryptjs.hashSync(req.body.password, 10);
+  }
+
+  try {
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      { $set: req.body },
+      { new: true }
+    );
+
+    const { password, ...rest } = updatedUser._doc;
+    res.status(200).json(rest);
+  } catch (err) {
+    next(errorhandler(500, 'Error updating user'));
+  }
+};
+
+
+export const deleteUser=async(req,res,next)=>{
+  if(req.user.id!==req.params.id) return next(errorhandler(401,'You can delete your own account!'))
     try {
-      if(req.body.password){
-        req.body.password = bcryptjs.hashSync(req.body.password,10)
-      }
-
-      const updateuser=await User.findByIdAndUpdate(req.params.id,{
-        $set:{
-          username:req.body.username,
-          email:req.body.email,
-          password:req.body.password,
-          avatar:req.body.avatar,
-        }
-      },{new:true})
-      
-      const {password,...rest}=updateuser._doc;
-      res.status(200).json(rest)
-
+      await User.findByIdAndDelete(req.params.id)
+      res.clearCookie('access_token')
+      res.status(200).json( 'User has been deleted!')
     } catch (error) {
       next(error)
     }
