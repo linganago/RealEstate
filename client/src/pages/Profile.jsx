@@ -14,7 +14,6 @@ import {
 } from '../redux/user/userSlice.js';
 import axiosInstance from '../utils/axiosInstace.js';
 import { Link, useNavigate } from 'react-router-dom';
-import Listing from '../../../api/models/listing.model.js';
 
 const Profile = () => {
   const fileRef = useRef(null);
@@ -35,8 +34,8 @@ const Profile = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showListingsError,setShowListingsError]=useState(false);
-  const [userListings,setUserListings]=useState([]);
+  const [showListingsError, setShowListingsError] = useState(false);
+  const [userListings, setUserListings] = useState([]);
 
   useEffect(() => {
     if (file) {
@@ -88,87 +87,101 @@ const Profile = () => {
   };
 
   const handleDeleteUser = async () => {
-  const confirmDelete = window.confirm(
-    'Are you sure you want to delete your account? This action is irreversible.'
-  );
-  if (!confirmDelete) return;
+    const confirmDelete = window.confirm(
+      'Are you sure you want to delete your account? This action is irreversible.'
+    );
+    if (!confirmDelete) return;
 
-  dispatch(deleteuserStart());
+    dispatch(deleteuserStart());
 
-  try {
-    const res = await fetch(`/api/user/delete/${currentUser._id}`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${currentUser.token}`, // Include if using JWT auth
-      },
-    });
+    try {
+      const res = await fetch(`/api/user/delete/${currentUser._id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${currentUser.token}`,
+        },
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (!res.ok || data.success === false) {
-      dispatch(deleteUserFailure(data.message || 'Account deletion failed'));
-      setErrorMessage(data.message || 'Failed to delete account');
-      return;
+      if (!res.ok || data.success === false) {
+        dispatch(deleteUserFailure(data.message || 'Account deletion failed'));
+        setErrorMessage(data.message || 'Failed to delete account');
+        return;
+      }
+
+      dispatch(deleteUserSuccess());
+      setSuccessMessage('Account deleted successfully!');
+      navigate('/sign-in');
+    } catch (error) {
+      const msg = error.message || 'Something went wrong while deleting the account.';
+      dispatch(deleteUserFailure(msg));
+      setErrorMessage(msg);
     }
+  };
 
-    dispatch(deleteUserSuccess());
-    setSuccessMessage('Account deleted successfully!');
-    navigate('/sign-in');
-  } catch (error) {
-    const msg = error.message || 'Something went wrong while deleting the account.';
-    dispatch(deleteUserFailure(msg));
-    setErrorMessage(msg);
-  }
-};
+  const handleSignout = async () => {
+    dispatch(signOutUserStart());
+    try {
+      const res = await fetch('/api/auth/signout');
+      const data = await res.json();
 
- const handleSignout = async () => {
-  dispatch(signOutUserStart());
-  try {
-    const res = await fetch('/api/auth/signout'); // Adjust the endpoint if needed
-    const data = await res.json();
+      if (data.success === false) {
+        dispatch(signOutUserFailure(data.message));
+        setErrorMessage(data.message);
+        return;
+      }
 
-    if (data.success === false) {
-      dispatch(signOutUserFailure(data.message));
-      setErrorMessage(data.message);
-      return;
+      dispatch(signOutUserSuccess());
+      navigate('/sign-in');
+    } catch (error) {
+      const errorMsg = error.message || 'Sign out failed';
+      dispatch(signOutUserFailure(errorMsg));
+      setErrorMessage(errorMsg);
     }
+  };
 
-    dispatch(signOutUserSuccess());
-    navigate('/sign-in'); // Redirect to sign-in page
-  } catch (error) {
-    const errorMsg = error.message || 'Sign out failed';
-    dispatch(signOutUserFailure(errorMsg));
-    setErrorMessage(errorMsg);
-  }
-};
+  const handleShowListings = async () => {
+    try {
+      setShowListingsError(false);
 
-const handleShowListings = async () => {
-  try {
-    setShowListingsError(false);
+      const res = await fetch(`/api/user/listings/${currentUser._id}`, {
+        headers: {
+          Authorization: `Bearer ${currentUser.token}`,
+        },
+      });
 
-    const res = await fetch(`/api/user/listings/${currentUser._id}`, {
-      headers: {
-        Authorization: `Bearer ${currentUser.token}`,
-      },
-    });
+      const data = await res.json();
 
-    const data = await res.json();
+      if (!res.ok || data.success === false) {
+        setShowListingsError(true);
+        return;
+      }
 
-    if (!res.ok || data.success === false) {
+      setUserListings(data);
+    } catch (error) {
+      console.error('Error fetching listings:', error);
       setShowListingsError(true);
-      return;
     }
+  };
 
-    setUserListings(data);
-
-  } catch (error) {
-    console.error('Error fetching listings:', error);
-    setShowListingsError(true);
-  }
-};
-
-
+  const handleListingDelete = async (listingId) => {
+    try {
+      const res = await fetch(`/api/listing/delete/${listingId}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (data.success === false) {
+        console.log(data.message);
+        return;
+      } else {
+        setUserListings((prev) => prev.filter((listing) => listing._id !== listingId));
+      }
+    } catch (error) {
+      console.log(error.message);
+    }
+  };
 
   return (
     <div className="p-3 max-w-lg mx-auto">
@@ -190,12 +203,19 @@ const handleShowListings = async () => {
           }}
         />
 
-        <img
-          src={file ? URL.createObjectURL(file) : formData.avatar || '/default-avatar.png'}
-          alt="profile"
-          onClick={() => fileRef.current.click()}
-          className="rounded-full h-24 w-24 object-cover cursor-pointer self-center mt-2"
-        />
+      <img
+         src={
+       file
+      ? URL.createObjectURL(file)
+      : formData.avatar
+      ? formData.avatar.replace('/upload/', '/upload/q_100/')
+      : '/default-avatar.png'
+      }
+      alt="profile"
+      onClick={() => fileRef.current.click()}
+      className="rounded-full h-24 w-24 object-cover cursor-pointer self-center mt-2"
+     />
+
 
         {uploading && <p className="text-sm text-center text-gray-500">Uploading...</p>}
         {uploadSuccess && <p className="text-sm text-center text-green-600">Profile image updated successfully!</p>}
@@ -263,19 +283,13 @@ const handleShowListings = async () => {
           )}
         </button>
 
-      <Link className='bg-green-700 text-white p-3 rounded-lg uppercase text-center hover:opacity-95' to={'/create-listing'}>
-        Create Listing
-      </Link>
-
+        <Link className="bg-green-700 text-white p-3 rounded-lg uppercase text-center hover:opacity-95" to={'/create-listing'}>
+          Create Listing
+        </Link>
       </form>
 
-      {successMessage && (
-        <p className="text-green-600 text-sm text-center mt-4">{successMessage}</p>
-      )}
-
-      {errorMessage && (
-        <p className="text-red-600 text-sm text-center mt-2">{errorMessage}</p>
-      )}
+      {successMessage && <p className="text-green-600 text-sm text-center mt-4">{successMessage}</p>}
+      {errorMessage && <p className="text-red-600 text-sm text-center mt-2">{errorMessage}</p>}
 
       <div className="flex justify-between mt-5">
         <span onClick={handleDeleteUser} className="text-red-700 cursor-pointer">
@@ -285,31 +299,48 @@ const handleShowListings = async () => {
           Signout
         </span>
       </div>
-      <button onClick={handleShowListings} className='text-green-700 w-full'>Show Listings</button>
-      <p className='text-red-700 mt-5'>{showListingsError ? 'Error showing listings' : ''} </p>
 
-      {userListings && userListings.length > 0 && 
-      <div className='flex flex-col gap-4'>
-        <h1 className='text-center mt-7 text-2xl font-semibold'>Your Listings</h1>
-        {userListings.map((listing) => (
-        <div key={listing._id} className="border p-3 rounded-lg flex justify-between items-center gap-4">
-        <Link to={`/listing/${listing._id}`}>
-         <img
-          src={listing.imageUrls?.[0] || '/fallback.jpg'}
-          alt="listing"
-          className="w-16 h-16 object-contain"
-        />
-      </Link>
-      <Link className='text-slate-700 font-semibold hover:underline truncate flex-1' to={`/listing/${listing._id}`}>
-       <p>{listing.name}</p>
-      </Link>
-      <div className='flex flex-col items-center'>
-       <button className='text-red-700 uppercase'>delete</button>
-       <button className='text-green-700 uppercase'>edit</button>
-      </div>
-    </div>
-  ))}</div>}
+      <button onClick={handleShowListings} className="text-green-700 w-full mt-5">Show Listings</button>
 
+      {showListingsError && (
+        <p className="text-red-700 mt-5">Error showing listings.</p>
+      )}
+
+      {!showListingsError && userListings.length === 0 && (
+        <p className="text-gray-500 mt-5 text-center">You have no listings yet.</p>
+      )}
+
+      {userListings.length > 0 && (
+        <div className="flex flex-col gap-4">
+          <h1 className="text-center mt-7 text-2xl font-semibold">Your Listings</h1>
+          {userListings.map((listing) => (
+            <div key={listing._id} className="border p-3 rounded-lg flex justify-between items-center gap-4">
+              <Link to={`/listing/${listing._id}`}>
+                <img
+  src={
+    listing.imageUrls?.[0]
+      ? listing.imageUrls[0].replace('/upload/', '/upload/q_100/')
+      : '/fallback.jpg'
+  }
+  alt="listing"
+  className="w-16 h-16 object-contain"
+/>
+
+              </Link>
+              <Link
+                className="text-slate-700 font-semibold hover:underline truncate flex-1"
+                to={`/listing/${listing._id}`}
+              >
+                <p>{listing.name}</p>
+              </Link>
+              <div className="flex flex-col items-center">
+                <button onClick={() => handleListingDelete(listing._id)} className="text-red-700 uppercase">delete</button>
+                <button className="text-green-700 uppercase">edit</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

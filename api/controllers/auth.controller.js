@@ -5,104 +5,105 @@ import jwt from 'jsonwebtoken';
 
 // SIGNUP
 export const signup = async (req, res, next) => {
-  const { username, email, password, avatar } = req.body;
-  const hashedPassword = bcryptjs.hashSync(password, 10);
-  const newUser = new User({
-    username,
-    email,
-    password: hashedPassword,
-    avatar,
-  });
-
   try {
-    await newUser.save();
-    const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET);
-    const { password, ...rest } = newUser._doc;
+    const { username, email, password, avatar } = req.body;
+    const hashedPassword = bcryptjs.hashSync(password, 10);
 
-    res.cookie('access_token', token, {
-      httpOnly: true,
-      secure: false,
-      sameSite: 'Lax',
-    }).status(201).json(rest);
+    const newUser = new User({ username, email, password: hashedPassword, avatar });
+    await newUser.save();
+
+    const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET);
+    const { password: _, ...rest } = newUser._doc;
+
+    res
+      .cookie('access_token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Lax', // or 'None' if cross-origin
+      })
+      .status(200)
+      .json({ success: true, ...rest }); // ✅ fixed this line
   } catch (error) {
-    next(errorhandler(550, 'Error from signup function'));
+    next(errorhandler(500, 'Signup failed'));
   }
 };
 
 // SIGNIN
 export const signin = async (req, res, next) => {
-  const { email, password } = req.body;
-
   try {
+    const { email, password } = req.body;
     const validUser = await User.findOne({ email });
+
     if (!validUser) return next(errorhandler(404, 'User not found'));
 
-    const validPassword = bcryptjs.compareSync(password, validUser.password);
-    if (!validPassword) return next(errorhandler(401, 'Wrong credentials'));
+    const isValid = bcryptjs.compareSync(password, validUser.password);
+    if (!isValid) return next(errorhandler(401, 'Wrong credentials'));
 
     const token = jwt.sign({ id: validUser._id }, process.env.JWT_SECRET);
-    const { password: pass, ...rest } = validUser._doc;
+    const { password: _, ...rest } = validUser._doc;
 
-    res.cookie('access_token', token, {
-      httpOnly: true,
-      secure: false,
-      sameSite: 'Lax',
-    }).status(200).json(rest);
+    res
+      .cookie('access_token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Lax',
+      })
+      .status(200)
+      .json({ success: true, ...rest });
   } catch (error) {
-    next(error);
+    next(errorhandler(500, 'Signin failed'));
   }
 };
 
 // GOOGLE OAUTH
 export const google = async (req, res, next) => {
   try {
-    const user = await User.findOne({ email: req.body.email });
+    const existingUser = await User.findOne({ email: req.body.email });
 
-    if (user) {
-      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
-      const { password: pass, ...rest } = user._doc;
+    if (existingUser) {
+      const token = jwt.sign({ id: existingUser._id }, process.env.JWT_SECRET);
+      const { password: _, ...rest } = existingUser._doc;
 
-      return res.cookie('access_token', token, {
-        httpOnly: true,
-        secure: false,
-        sameSite: 'Lax',
-      }).status(200).json(rest);
+      return res
+        .cookie('access_token', token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'Lax',
+        })
+        .status(200)
+        .json({ success: true, ...rest });
     }
 
-    const generatedPassword =
-      Math.random().toString(36).slice(-8) +
-      Math.random().toString(36).slice(-8);
-    const hashedPassword = bcryptjs.hashSync(generatedPassword, 10);
+    const randomPassword =
+      Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+    const hashedPassword = bcryptjs.hashSync(randomPassword, 10);
 
     const newUser = new User({
-      username:
-        req.body.name.split(" ").join("").toLowerCase() +
-        Math.random().toString(36).slice(-4),
+      username: req.body.name.toLowerCase().replace(/\s+/g, '') + Math.floor(Math.random() * 10000),
       email: req.body.email,
       password: hashedPassword,
       avatar: req.body.photo,
     });
 
     await newUser.save();
-
     const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET);
-    const { password: pass, ...rest } = newUser._doc;
+    const { password: _, ...rest } = newUser._doc;
 
-    res.cookie('access_token', token, {
-      httpOnly: true,
-      secure: false,
-      sameSite: 'Lax',
-    }).status(200).json(rest);
+    res
+      .cookie('access_token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Lax',
+      })
+      .status(200)
+      .json({ success: true, ...rest });
   } catch (error) {
-    next(error);
+    next(errorhandler(500, 'Google sign-in failed'));
   }
 };
 
-export const signout=async(req,res,next)=>{
-    try {
-      res.clearCookie('access_token')
-      res.status(200).json('user has been logged out!')
-    } catch (error) {
-      next(error);
-    }
-}
+// SIGNOUT
+export const signout = (req, res) => {
+  res.clearCookie('access_token');
+  res.status(200).json({ success: true, message: 'User has been logged out' });
+};

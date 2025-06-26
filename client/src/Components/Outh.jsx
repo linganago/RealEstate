@@ -16,16 +16,15 @@ export default function OAuth() {
 
     try {
       const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({
-        prompt: 'select_account',
-      });
+      provider.setCustomParameters({ prompt: 'select_account' });
 
       const auth = getAuth(app);
       const result = await signInWithPopup(auth, provider);
 
-      const res = await fetch('/api/auth/google', {
+      const res = await fetch('http://localhost:3000/api/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // ✅ include cookies
         body: JSON.stringify({
           name: result.user.displayName,
           email: result.user.email,
@@ -34,13 +33,14 @@ export default function OAuth() {
       });
 
       const data = await res.json();
-      dispatch(signInSuccess(data));
-      navigate('/');
+      if (res.ok) {
+        dispatch(signInSuccess(data));
+        navigate('/');
+      } else {
+        console.error(data.message || 'Google sign-in failed');
+      }
     } catch (error) {
-      console.log('Could not sign in with Google:', error);
-      // Optional fallback to redirect if popup fails
-      // const provider = new GoogleAuthProvider();
-      // signInWithRedirect(getAuth(app), provider);
+      console.log('Google OAuth error:', error);
     } finally {
       setIsSigningIn(false);
     }
@@ -49,9 +49,9 @@ export default function OAuth() {
   return (
     <button
       onClick={handleGoogleClick}
-      type='button'
+      type="button"
       disabled={isSigningIn}
-      className='bg-red-700 text-white p-3 rounded-lg uppercase hover:opacity-95 disabled:opacity-70 disabled:cursor-not-allowed'
+      className="bg-red-700 text-white p-3 rounded-lg uppercase hover:opacity-95 disabled:opacity-70 disabled:cursor-not-allowed"
     >
       {isSigningIn ? 'Signing in...' : 'Continue with Google'}
     </button>
